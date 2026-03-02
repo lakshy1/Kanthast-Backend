@@ -1,0 +1,31 @@
+# ===============================
+# BACKEND (Node / Express)
+# ===============================
+
+node_modules/
+
+# Environment variables
+.env
+.env.*
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Temporary files
+*.tmp
+
+# Uploaded files (if any)
+uploads/
+
+# MongoDB local files (if any)
+*.mongodb
+
+# Build files (if using TS in future)
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
