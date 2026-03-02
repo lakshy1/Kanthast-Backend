@@ -1,14 +1,16 @@
 // models/OTP.js
 import mongoose from "mongoose";
 import mailSender from "../utils/mailSender.js"; // adjust path if needed
+import { emailVerificationTemplate } from "../mail/templates/emailVerification.js";
 
 // Function to send verification emails
 const sendVerificationEmail = async (email, otp) => {
   try {
+    const displayName = email?.split("@")?.[0] || "there";
     const mailResponse = await mailSender(
       email,
-      "Verification Email from StudyNotion",
-      `<h2>Your OTP is: ${otp}</h2><p>This code will expire in 5 minutes.</p>`
+      "Your Kanthast verification code",
+      emailVerificationTemplate(displayName, otp)
     );
     console.log("Email sent successfully:", mailResponse.messageId);
   } catch (error) {

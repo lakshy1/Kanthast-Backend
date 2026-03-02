@@ -1,24 +1,36 @@
 export const emailVerificationTemplate = (userName, otp) => {
+  const safeName = userName || "there";
+
   return `
   <html>
-    <body style="font-family: Arial, sans-serif; background-color:#f9f9f9; padding:20px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px; margin:auto; background:#ffffff; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+    <body style="margin:0; padding:24px; background-color:#f3f4f6; font-family:Arial, sans-serif; color:#111827;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:620px; margin:0 auto; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
         <tr>
-          <td style="padding:20px; text-align:center; background:#2196F3; color:#fff; border-radius:8px 8px 0 0;">
-            <h2 style="margin:0;">Email Verification</h2>
+          <td style="padding:18px 24px; background:#111827; color:#ffffff; text-align:center;">
+            <h2 style="margin:0; font-size:20px; letter-spacing:0.5px;">Kanthast</h2>
           </td>
         </tr>
         <tr>
-          <td style="padding:20px; color:#333;">
-            <p>Hi <strong>${userName}</strong>,</p>
-            <p>Please use the following OTP to verify your email address:</p>
-            <div style="margin:20px auto; text-align:center;">
-              <span style="display:inline-block; background:#eee; padding:15px 30px; font-size:24px; font-weight:bold; border-radius:6px; letter-spacing:2px; color:#2c3e50;">
+          <td style="padding:28px 24px;">
+            <p style="margin:0 0 12px 0; font-size:15px;">Hi <strong>${safeName}</strong>,</p>
+            <p style="margin:0 0 20px 0; font-size:15px; line-height:1.6;">
+              Use the one-time password below to verify your email address.
+            </p>
+
+            <div style="text-align:center; margin:0 0 18px 0;">
+              <span style="display:inline-block; padding:14px 30px; border:1px solid #d1d5db; border-radius:10px; background:#f9fafb; font-size:30px; font-weight:700; letter-spacing:8px; color:#111827;">
                 ${otp}
               </span>
             </div>
-            <p>This OTP is valid for 10 minutes. Please do not share it with anyone.</p>
-            <p style="margin-top:20px;">Thanks,<br/><strong>The Team</strong></p>
+
+            <p style="margin:0; font-size:12px; color:#6b7280; text-align:center;">
+              OTP expires in 5 minutes. Please do not share this code with anyone.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 24px; border-top:1px solid #e5e7eb; text-align:center; font-size:12px; color:#6b7280;">
+            This is an automated email from Kanthast.
           </td>
         </tr>
       </table>

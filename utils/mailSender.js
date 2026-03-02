@@ -15,7 +15,7 @@ const mailSender = async (email, title, body) => {
     });
 
     const info = await transporter.sendMail({
-      from: `"EduLearn || by Lakshya Sehgal" <${process.env.MAIL_USER}>`,
+      from: `"Kanthast" <${process.env.MAIL_USER}>`,
       to: email,
       subject: title,
       html: body,
