@@ -37,6 +37,10 @@ app.use(cookieParser());
 
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  process.env.FRONTEND_URL,
+  ...(process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim())
+    : []),
   "http://localhost:3000",
   "http://localhost:5173",
 ].filter(Boolean);
@@ -50,6 +54,8 @@ app.use(
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 app.use(
