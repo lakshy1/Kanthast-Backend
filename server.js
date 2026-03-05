@@ -14,6 +14,7 @@ import profileRoutes from "./routes/Profile.js";
 import paymentRoutes from "./routes/Payments.js";
 import courseRoutes from "./routes/Course.js";
 import chatRoutes from "./routes/Chat.js";
+import medicineUsmleRoutes from "./routes/MedicineUSMLE.js";
 
 dotenv.config();
 
@@ -74,6 +75,7 @@ app.use("/api/v1/profile", profileRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/courses", courseRoutes);
 app.use("/api/v1/chat", chatRoutes);
+app.use("/api/v1/medicine-usmle", medicineUsmleRoutes);
 
 // Default route
 app.get("/", (req, res) => {
