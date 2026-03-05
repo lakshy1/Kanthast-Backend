@@ -109,6 +109,50 @@ const isLockedVideoQuestion = (text = "") => {
   );
 };
 
+const formatShortDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const getSubscriptionStatusForUser = (user) => {
+  const purchased = Boolean(user?.subscriptionPurchased);
+  const validTill = user?.subscriptionValidTill ? new Date(user.subscriptionValidTill) : null;
+  const hasValidDate = validTill && !Number.isNaN(validTill.getTime());
+  const now = new Date();
+
+  if (!purchased) {
+    return {
+      status: "not_purchased",
+      line: "Your subscription status: Not purchased yet.",
+    };
+  }
+
+  if (hasValidDate && validTill > now) {
+    return {
+      status: "active",
+      line: `Your subscription status: Active till ${formatShortDate(validTill)}.`,
+    };
+  }
+
+  if (hasValidDate) {
+    return {
+      status: "expired",
+      line: `Your subscription status: Expired on ${formatShortDate(validTill)}.`,
+    };
+  }
+
+  return {
+    status: "active_no_date",
+    line: "Your subscription status: Active.",
+  };
+};
+
 const logProviderFailure = (provider, error, meta = {}) => {
   console.error(`[chatbot:${provider}]`, {
     message: error?.message || "Unknown provider error",
@@ -532,12 +576,19 @@ export const sendChatMessage = async (req, res) => {
     const interfaceIssueReported = isInterfaceIssueMessage(cleanMessage);
     const subscriptionQuestion = isSubscriptionQuestion(cleanMessage);
     const lockedVideoQuestion = isLockedVideoQuestion(cleanMessage);
+    const subscriptionStatus = getSubscriptionStatusForUser(user);
     let assistantReply = supportAcknowledgement;
 
     if (lockedVideoQuestion) {
-      assistantReply = lockedVideoReplyWithLink;
+      if (subscriptionStatus.status === "active" || subscriptionStatus.status === "active_no_date") {
+        assistantReply = `${subscriptionStatus.line}\n\nIf content is still locked, please refresh the page or log out and log in again.`;
+      } else if (subscriptionStatus.status === "expired") {
+        assistantReply = `${subscriptionStatus.line}\n\nPlease renew your subscription to unlock all content.\nPurchase page: ${subscriptionPagePath}`;
+      } else {
+        assistantReply = `${lockedVideoReplyWithLink}\n${subscriptionStatus.line}`;
+      }
     } else if (subscriptionQuestion) {
-      assistantReply = subscriptionReplyWithLink;
+      assistantReply = `${subscriptionReplyWithLink}\n${subscriptionStatus.line}`;
     } else if (!interfaceIssueReported) {
       const context = getRecentContext(activeSession.messages, 12);
       assistantReply = await generateAssistantReply({

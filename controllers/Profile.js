@@ -38,6 +38,8 @@ export const updateProfile = async (req, res) => {
         contactNumber: userDetails.contactNumber,
         image: userDetails.image,
         subscriptionPurchased: Boolean(userDetails.subscriptionPurchased),
+        subscriptionPurchasedOn: userDetails.subscriptionPurchasedOn || null,
+        subscriptionValidTill: userDetails.subscriptionValidTill || null,
         joinedAt: userDetails.createdAt,
       },
     });
@@ -69,6 +71,8 @@ export const getProfile = async (req, res) => {
         contactNumber: userDetails.contactNumber,
         image: userDetails.image,
         subscriptionPurchased: Boolean(userDetails.subscriptionPurchased),
+        subscriptionPurchasedOn: userDetails.subscriptionPurchasedOn || null,
+        subscriptionValidTill: userDetails.subscriptionValidTill || null,
         joinedAt: userDetails.createdAt,
       },
     });
@@ -80,7 +84,7 @@ export const getProfile = async (req, res) => {
 export const purchaseSubscription = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { planDurationYears } = req.body;
+    const { planDurationYears, dummyPaymentStatus, dummyPaymentId } = req.body;
 
     if (!userId) {
       return res.status(400).json({ success: false, message: "User ID is required" });
@@ -93,9 +97,34 @@ export const purchaseSubscription = async (req, res) => {
       });
     }
 
+    if (dummyPaymentStatus !== "success" || !String(dummyPaymentId || "").trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Dummy payment failed. Please retry the payment flow.",
+      });
+    }
+
+    const currentUser = await User.findById(userId);
+    if (!currentUser) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const now = new Date();
+    const baseDate =
+      currentUser.subscriptionValidTill && new Date(currentUser.subscriptionValidTill) > now
+        ? new Date(currentUser.subscriptionValidTill)
+        : now;
+
+    const validTill = new Date(baseDate);
+    validTill.setFullYear(validTill.getFullYear() + Number(planDurationYears));
+
     const userDetails = await User.findByIdAndUpdate(
       userId,
-      { subscriptionPurchased: true },
+      {
+        subscriptionPurchased: true,
+        subscriptionPurchasedOn: now,
+        subscriptionValidTill: validTill,
+      },
       { new: true }
     ).populate("additionalDetails");
 
@@ -115,6 +144,8 @@ export const purchaseSubscription = async (req, res) => {
         contactNumber: userDetails.contactNumber,
         image: userDetails.image,
         subscriptionPurchased: Boolean(userDetails.subscriptionPurchased),
+        subscriptionPurchasedOn: userDetails.subscriptionPurchasedOn || null,
+        subscriptionValidTill: userDetails.subscriptionValidTill || null,
         joinedAt: userDetails.createdAt,
       },
       profile: userDetails.additionalDetails || null,

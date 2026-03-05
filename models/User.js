@@ -109,6 +109,14 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    subscriptionPurchasedOn: {
+        type: Date,
+        default: null,
+    },
+    subscriptionValidTill: {
+        type: Date,
+        default: null,
+    },
     chatHistory: [
         chatMessageSchema,
     ],
