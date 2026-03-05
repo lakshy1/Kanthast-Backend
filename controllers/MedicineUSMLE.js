@@ -210,3 +210,257 @@ export const upsertMedicineUsmleContent = async (req, res) => {
     return res.status(statusCode).json({ success: false, message: error.message });
   }
 };
+
+const getMedicineDocument = async () => {
+  const doc = await getOrCreateMedicineUsmle();
+  return doc;
+};
+
+export const createSubject = async (req, res) => {
+  try {
+    const { name, totalDuration = "--:--" } = req.body || {};
+    if (!name?.trim()) {
+      return res.status(400).json({ success: false, message: "Subject name is required" });
+    }
+
+    const doc = await getMedicineDocument();
+    doc.subjects.push({
+      name: name.trim(),
+      totalDuration: String(totalDuration || "--:--").trim(),
+      order: doc.subjects.length,
+      chapters: [],
+    });
+    doc.updatedBy = req.user?._id || null;
+    await doc.save();
+
+    return res.status(201).json({ success: true, content: sortHierarchy(doc) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateSubject = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    const { name, totalDuration, order } = req.body || {};
+
+    const doc = await getMedicineDocument();
+    const subject = doc.subjects.id(subjectId);
+    if (!subject) {
+      return res.status(404).json({ success: false, message: "Subject not found" });
+    }
+
+    if (name !== undefined) subject.name = String(name).trim();
+    if (totalDuration !== undefined) subject.totalDuration = String(totalDuration).trim() || "--:--";
+    if (order !== undefined && Number.isFinite(Number(order))) subject.order = Number(order);
+    doc.updatedBy = req.user?._id || null;
+    await doc.save();
+
+    return res.status(200).json({ success: true, content: sortHierarchy(doc) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteSubject = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    const doc = await getMedicineDocument();
+    const subject = doc.subjects.id(subjectId);
+    if (!subject) {
+      return res.status(404).json({ success: false, message: "Subject not found" });
+    }
+
+    subject.deleteOne();
+    doc.subjects.forEach((item, index) => {
+      item.order = index;
+    });
+    doc.updatedBy = req.user?._id || null;
+    await doc.save();
+
+    return res.status(200).json({ success: true, content: sortHierarchy(doc) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createChapter = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    const { name, totalDuration = "--:--" } = req.body || {};
+    if (!name?.trim()) {
+      return res.status(400).json({ success: false, message: "Chapter name is required" });
+    }
+
+    const doc = await getMedicineDocument();
+    const subject = doc.subjects.id(subjectId);
+    if (!subject) {
+      return res.status(404).json({ success: false, message: "Subject not found" });
+    }
+
+    subject.chapters.push({
+      name: name.trim(),
+      totalDuration: String(totalDuration || "--:--").trim(),
+      order: subject.chapters.length,
+      videos: [],
+    });
+    doc.updatedBy = req.user?._id || null;
+    await doc.save();
+
+    return res.status(201).json({ success: true, content: sortHierarchy(doc) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateChapter = async (req, res) => {
+  try {
+    const { subjectId, chapterId } = req.params;
+    const { name, totalDuration, order } = req.body || {};
+
+    const doc = await getMedicineDocument();
+    const subject = doc.subjects.id(subjectId);
+    if (!subject) {
+      return res.status(404).json({ success: false, message: "Subject not found" });
+    }
+    const chapter = subject.chapters.id(chapterId);
+    if (!chapter) {
+      return res.status(404).json({ success: false, message: "Chapter not found" });
+    }
+
+    if (name !== undefined) chapter.name = String(name).trim();
+    if (totalDuration !== undefined) chapter.totalDuration = String(totalDuration).trim() || "--:--";
+    if (order !== undefined && Number.isFinite(Number(order))) chapter.order = Number(order);
+    doc.updatedBy = req.user?._id || null;
+    await doc.save();
+
+    return res.status(200).json({ success: true, content: sortHierarchy(doc) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteChapter = async (req, res) => {
+  try {
+    const { subjectId, chapterId } = req.params;
+    const doc = await getMedicineDocument();
+    const subject = doc.subjects.id(subjectId);
+    if (!subject) {
+      return res.status(404).json({ success: false, message: "Subject not found" });
+    }
+    const chapter = subject.chapters.id(chapterId);
+    if (!chapter) {
+      return res.status(404).json({ success: false, message: "Chapter not found" });
+    }
+
+    chapter.deleteOne();
+    subject.chapters.forEach((item, index) => {
+      item.order = index;
+    });
+    doc.updatedBy = req.user?._id || null;
+    await doc.save();
+
+    return res.status(200).json({ success: true, content: sortHierarchy(doc) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createVideo = async (req, res) => {
+  try {
+    const { subjectId, chapterId } = req.params;
+    const { name, duration = "--:--", summary = "", videoLink = "", photos = [] } = req.body || {};
+    if (!name?.trim()) {
+      return res.status(400).json({ success: false, message: "Video name is required" });
+    }
+
+    const doc = await getMedicineDocument();
+    const subject = doc.subjects.id(subjectId);
+    if (!subject) {
+      return res.status(404).json({ success: false, message: "Subject not found" });
+    }
+    const chapter = subject.chapters.id(chapterId);
+    if (!chapter) {
+      return res.status(404).json({ success: false, message: "Chapter not found" });
+    }
+
+    chapter.videos.push({
+      name: name.trim(),
+      duration: String(duration || "--:--").trim(),
+      summary: String(summary || "").trim(),
+      videoLink: String(videoLink || "").trim(),
+      photos: normalizeMedia(photos),
+      order: chapter.videos.length,
+    });
+    doc.updatedBy = req.user?._id || null;
+    await doc.save();
+
+    return res.status(201).json({ success: true, content: sortHierarchy(doc) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateVideo = async (req, res) => {
+  try {
+    const { subjectId, chapterId, videoId } = req.params;
+    const { name, duration, summary, videoLink, photos, order } = req.body || {};
+
+    const doc = await getMedicineDocument();
+    const subject = doc.subjects.id(subjectId);
+    if (!subject) {
+      return res.status(404).json({ success: false, message: "Subject not found" });
+    }
+    const chapter = subject.chapters.id(chapterId);
+    if (!chapter) {
+      return res.status(404).json({ success: false, message: "Chapter not found" });
+    }
+    const video = chapter.videos.id(videoId);
+    if (!video) {
+      return res.status(404).json({ success: false, message: "Video not found" });
+    }
+
+    if (name !== undefined) video.name = String(name).trim();
+    if (duration !== undefined) video.duration = String(duration).trim() || "--:--";
+    if (summary !== undefined) video.summary = String(summary).trim();
+    if (videoLink !== undefined) video.videoLink = String(videoLink).trim();
+    if (photos !== undefined) video.photos = normalizeMedia(photos);
+    if (order !== undefined && Number.isFinite(Number(order))) video.order = Number(order);
+    doc.updatedBy = req.user?._id || null;
+    await doc.save();
+
+    return res.status(200).json({ success: true, content: sortHierarchy(doc) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteVideo = async (req, res) => {
+  try {
+    const { subjectId, chapterId, videoId } = req.params;
+    const doc = await getMedicineDocument();
+    const subject = doc.subjects.id(subjectId);
+    if (!subject) {
+      return res.status(404).json({ success: false, message: "Subject not found" });
+    }
+    const chapter = subject.chapters.id(chapterId);
+    if (!chapter) {
+      return res.status(404).json({ success: false, message: "Chapter not found" });
+    }
+    const video = chapter.videos.id(videoId);
+    if (!video) {
+      return res.status(404).json({ success: false, message: "Video not found" });
+    }
+
+    video.deleteOne();
+    chapter.videos.forEach((item, index) => {
+      item.order = index;
+    });
+    doc.updatedBy = req.user?._id || null;
+    await doc.save();
+
+    return res.status(200).json({ success: true, content: sortHierarchy(doc) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
