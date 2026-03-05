@@ -37,6 +37,7 @@ export const updateProfile = async (req, res) => {
         accountType: userDetails.accountType,
         contactNumber: userDetails.contactNumber,
         image: userDetails.image,
+        subscriptionPurchased: Boolean(userDetails.subscriptionPurchased),
         joinedAt: userDetails.createdAt,
       },
     });
@@ -67,8 +68,56 @@ export const getProfile = async (req, res) => {
         accountType: userDetails.accountType,
         contactNumber: userDetails.contactNumber,
         image: userDetails.image,
+        subscriptionPurchased: Boolean(userDetails.subscriptionPurchased),
         joinedAt: userDetails.createdAt,
       },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const purchaseSubscription = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { planDurationYears } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "User ID is required" });
+    }
+
+    if (![1, 2].includes(Number(planDurationYears))) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid plan duration. Allowed values: 1 or 2 years.",
+      });
+    }
+
+    const userDetails = await User.findByIdAndUpdate(
+      userId,
+      { subscriptionPurchased: true },
+      { new: true }
+    ).populate("additionalDetails");
+
+    if (!userDetails) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Subscription activated successfully",
+      user: {
+        _id: userDetails._id,
+        firstName: userDetails.firstName,
+        lastName: userDetails.lastName,
+        email: userDetails.email,
+        accountType: userDetails.accountType,
+        contactNumber: userDetails.contactNumber,
+        image: userDetails.image,
+        subscriptionPurchased: Boolean(userDetails.subscriptionPurchased),
+        joinedAt: userDetails.createdAt,
+      },
+      profile: userDetails.additionalDetails || null,
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

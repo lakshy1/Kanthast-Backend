@@ -105,6 +105,10 @@ const userSchema = new mongoose.Schema({
     resetPasswordExpires: {
         type: Date,
     },
+    subscriptionPurchased: {
+        type: Boolean,
+        default: false,
+    },
     chatHistory: [
         chatMessageSchema,
     ],

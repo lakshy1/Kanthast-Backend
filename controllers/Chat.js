@@ -13,10 +13,13 @@ const lockedVideoPattern =
   /(videos?\s+(are|is)\s+locked|all\s+videos?\s+(are|is)\s+not\s+unlocked|video\s+locked|content\s+locked)/i;
 const supportAcknowledgement =
   "I will notify the support team to resolve your issue within 24-48 hours. Thank you for for reporting this.";
+const subscriptionPagePath = "/subscription";
 const subscriptionReply =
   "Kanthast subscription details:\n- Basic plan: 110 USD for 1 year.\n- Basic plan: 200 USD for 2 year plan.\n\nAn active subscription unlocks all platform content.";
 const lockedVideoReply =
   "It looks like your videos are locked. Please purchase a subscription to unlock all content.\n\nSubscription cost:\n- 110 USD for 1 year\n- 200 USD for 2 year plan\n\nOnly 2 videos are available for free.";
+const subscriptionReplyWithLink = `${subscriptionReply}\n\nPurchase page: ${subscriptionPagePath}`;
+const lockedVideoReplyWithLink = `${lockedVideoReply}\nPurchase page: ${subscriptionPagePath}`;
 
 const supportSystemPrompt = `You are Kanthast Support Assistant.
 Primary goal: help users resolve platform issues quickly and clearly.
@@ -33,7 +36,9 @@ Rules:
    - Basic subscription is 110 USD for 1 year.
    - Basic subscription is 200 USD for 2 year plan.
    - Taking a subscription unlocks all content on the platform.
+   - Also share this purchase link: /subscription
 7) If user says videos are locked or not unlocked, tell them subscription is required and mention only 2 videos are free.
+   - Also share this purchase link: /subscription
 8) Return plain text only. Keep bullet readability by using "-" for list items. Do not use markdown emphasis symbols like * or **.
 `;
 
@@ -530,9 +535,9 @@ export const sendChatMessage = async (req, res) => {
     let assistantReply = supportAcknowledgement;
 
     if (lockedVideoQuestion) {
-      assistantReply = lockedVideoReply;
+      assistantReply = lockedVideoReplyWithLink;
     } else if (subscriptionQuestion) {
-      assistantReply = subscriptionReply;
+      assistantReply = subscriptionReplyWithLink;
     } else if (!interfaceIssueReported) {
       const context = getRecentContext(activeSession.messages, 12);
       assistantReply = await generateAssistantReply({
