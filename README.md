@@ -40,6 +40,9 @@ PORT=4000
 MONGODB_URL=your_mongodb_atlas_connection_string
 JWT_SECRET=your_jwt_secret
 CLIENT_URL=http://localhost:5173
+MAIL_FROM=verified_sender@yourdomain.com
+MAIL_FROM_NAME=Kanthast
+BREVO_API_KEY=your_brevo_v3_api_key
 
 
 ---

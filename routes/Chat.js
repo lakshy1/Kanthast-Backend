@@ -1,5 +1,6 @@
 import express from "express";
 import { auth } from "../middleware/Auth.js";
+import { chatRateLimit } from "../middleware/ChatRateLimit.js";
 import {
   createChatSession,
   deleteChatSession,
@@ -13,7 +14,7 @@ const router = express.Router();
 router.get("/history", auth, getChatHistory);
 router.post("/session/new", auth, createChatSession);
 router.delete("/session/:sessionId", auth, deleteChatSession);
-router.post("/send", auth, sendChatMessage);
+router.post("/send", auth, chatRateLimit, sendChatMessage);
 router.post("/upload", auth, uploadChatFile);
 
 export default router;

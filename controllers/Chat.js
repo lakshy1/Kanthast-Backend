@@ -6,13 +6,22 @@ import { uploadImageToCloudinary } from "../utils/imageUploader.js";
 const CHAT_HISTORY_LIMIT = 300;
 const SUPPORT_SNAPSHOT_LIMIT = 20;
 const interfaceIssuePattern =
-  /(interface|ui|screen|page|layout|button|not\s*working|broken|issue|problem|error|bug|cannot|can't|unable)/i;
+  /(interface|video|layout|not\s*working|broken|error|bug|can't)/i;
+const subscriptionQueryPattern =
+  /(subscription|pricing|price|plan|plans|cost|fees?|upgrade|premium|basic\s+plan)/i;
+const lockedVideoPattern =
+  /(videos?\s+(are|is)\s+locked|all\s+videos?\s+(are|is)\s+not\s+unlocked|video\s+locked|content\s+locked)/i;
 const supportAcknowledgement =
-  "I will notify the support team to resolve your issue within 24-48 hours. Thank you for your patience and for reporting this.";
+  "I will notify the support team to resolve your issue within 24-48 hours. Thank you for for reporting this.";
+const subscriptionReply =
+  "Kanthast subscription details:\n- Basic plan: 110 USD for 1 year.\n- Basic plan: 200 USD for 2 year plan.\n\nAn active subscription unlocks all platform content.";
+const lockedVideoReply =
+  "It looks like your videos are locked. Please purchase a subscription to unlock all content.\n\nSubscription cost:\n- 110 USD for 1 year\n- 200 USD for 2 year plan\n\nOnly 2 videos are available for free.";
 
 const supportSystemPrompt = `You are Kanthast Support Assistant.
 Primary goal: help users resolve platform issues quickly and clearly.
 Secondary goal: answer learning-related questions in concise, practical terms.
+Communication style: professional, polite, concise, and accurate.
 
 Rules:
 1) If user reports a platform issue (login, OTP, payments, lists, videos, profile, upload, performance), ask clarifying details and provide step-by-step troubleshooting.
@@ -20,7 +29,28 @@ Rules:
 3) Keep answers direct and easy to follow.
 4) Never claim actions you did not perform.
 5) If unsure, state uncertainty and suggest the safest next step.
+6) If user asks about subscription, pricing, plans, or cost, always use this exact policy:
+   - Basic subscription is 110 USD for 1 year.
+   - Basic subscription is 200 USD for 2 year plan.
+   - Taking a subscription unlocks all content on the platform.
+7) If user says videos are locked or not unlocked, tell them subscription is required and mention only 2 videos are free.
+8) Return plain text only. Keep bullet readability by using "-" for list items. Do not use markdown emphasis symbols like * or **.
 `;
+
+const stripMarkdownFormatting = (text = "") =>
+  text
+    .replace(/```[\s\S]*?```/g, (match) => match.replace(/`/g, ""))
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/^(\s*)[*]\s+/gm, "$1- ")
+    .replace(/^(\s*)\d+\.\s+/gm, "$1- ")
+    .replace(/^(\s*)#+\s+/gm, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const normalizeChatText = (text = "") =>
+  String(text).toLowerCase().replace(/[^a-z0-9]/g, "");
 
 const getRecentContext = (history = [], count = 12) =>
   history.slice(-count).map((item) => ({
@@ -31,6 +61,55 @@ const getRecentContext = (history = [], count = 12) =>
   }));
 
 const isInterfaceIssueMessage = (text = "") => interfaceIssuePattern.test(text);
+
+const subscriptionKeywordTokens = [
+  "subscription",
+  "subscriptionprice",
+  "pricing",
+  "price",
+  "plans",
+  "plan",
+  "cost",
+  "fees",
+  "premium",
+  "upgrade",
+];
+
+const lockedVideoKeywordTokens = [
+  "videolocked",
+  "videoslocked",
+  "allvideosnotunlocked",
+  "videosnotunlocked",
+  "contentlocked",
+  "unlockvideos",
+  "lockedvideos",
+];
+
+const includesAnyToken = (normalizedText = "", tokens = []) =>
+  tokens.some((token) => normalizedText.includes(token));
+
+const isSubscriptionQuestion = (text = "") => {
+  const normalizedText = normalizeChatText(text);
+  return (
+    subscriptionQueryPattern.test(text) ||
+    includesAnyToken(normalizedText, subscriptionKeywordTokens)
+  );
+};
+
+const isLockedVideoQuestion = (text = "") => {
+  const normalizedText = normalizeChatText(text);
+  return (
+    lockedVideoPattern.test(text) ||
+    includesAnyToken(normalizedText, lockedVideoKeywordTokens)
+  );
+};
+
+const logProviderFailure = (provider, error, meta = {}) => {
+  console.error(`[chatbot:${provider}]`, {
+    message: error?.message || "Unknown provider error",
+    ...meta,
+  });
+};
 
 const buildSupportSnapshot = (messages = []) =>
   messages.slice(-SUPPORT_SNAPSHOT_LIMIT).map((item) => ({
@@ -126,7 +205,7 @@ const callGeminiModel = async ({ apiKey, model, prompt, context, apiVersion }) =
     throw new Error(data?.error?.message || `Gemini request failed for model ${model}`);
   }
 
-  return text.trim();
+  return stripMarkdownFormatting(text);
 };
 
 const generateWithGemini = async ({ apiKey, prompt, context }) => {
@@ -155,10 +234,14 @@ const generateWithGemini = async ({ apiKey, prompt, context }) => {
         apiVersion,
       });
     } catch (error) {
+      logProviderFailure("gemini-attempt", error, { model, apiVersion });
       lastError = error;
     }
   }
 
+  if (lastError) {
+    logProviderFailure("gemini-final", lastError, { attempts: triedCombos.size });
+  }
   throw lastError || new Error("Gemini API request failed");
 };
 
@@ -183,9 +266,11 @@ const generateWithOpenAI = async ({ apiKey, prompt, context }) => {
   const data = await response.json();
   const text = data?.choices?.[0]?.message?.content;
   if (!response.ok || !text) {
-    throw new Error(data?.error?.message || "OpenAI API request failed");
+    const error = new Error(data?.error?.message || "OpenAI API request failed");
+    logProviderFailure("openai", error, { status: response.status });
+    throw error;
   }
-  return text.trim();
+  return stripMarkdownFormatting(text);
 };
 
 const generateAssistantReply = async ({ prompt, context }) => {
@@ -440,9 +525,15 @@ export const sendChatMessage = async (req, res) => {
     }
 
     const interfaceIssueReported = isInterfaceIssueMessage(cleanMessage);
+    const subscriptionQuestion = isSubscriptionQuestion(cleanMessage);
+    const lockedVideoQuestion = isLockedVideoQuestion(cleanMessage);
     let assistantReply = supportAcknowledgement;
 
-    if (!interfaceIssueReported) {
+    if (lockedVideoQuestion) {
+      assistantReply = lockedVideoReply;
+    } else if (subscriptionQuestion) {
+      assistantReply = subscriptionReply;
+    } else if (!interfaceIssueReported) {
       const context = getRecentContext(activeSession.messages, 12);
       assistantReply = await generateAssistantReply({
         prompt: cleanMessage,
@@ -495,6 +586,10 @@ export const sendChatMessage = async (req, res) => {
       messages: activeSession.messages,
     });
   } catch (error) {
+    console.error("[chatbot:sendChatMessage]", {
+      message: error?.message || "Unknown error",
+      userId: req?.user?.id || "",
+    });
     return res.status(500).json({ success: false, message: error.message });
   }
 };
