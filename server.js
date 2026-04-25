@@ -78,6 +78,11 @@ app.use("/api/v1/courses", courseRoutes);
 app.use("/api/v1/chat", chatRoutes);
 app.use("/api/v1/medicine-usmle", medicineUsmleRoutes);
 
+// Health check — lightweight, no DB query, used by frontend to wake up Render
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 // Default route
 app.get("/", (req, res) => {
   res.send("🚀 Server is running successfully!");
