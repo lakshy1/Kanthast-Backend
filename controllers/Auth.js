@@ -3,10 +3,38 @@ import jwt from "jsonwebtoken";
 import OTP from "../models/OTP.js";
 import Profile from "../models/Profile.js";
 import User from "../models/User.js";
+import {
+  buildSessionPayload,
+  createSession,
+  newSessionId,
+  revokeAllActiveSessions,
+} from "../utils/sessionManager.js";
 
 const ADMIN_LOGIN_ID = "Admin";
 const ADMIN_LOGIN_PASSWORD = "Admin123456789";
 const ADMIN_EMAIL = "admin@kanthast.local";
+
+const defaultSettings = {
+  language: "English",
+  appearance: "System",
+  defaultPlaybackSpeed: "1x",
+  profileVisibility: "enrolled",
+  emailUpdates: true,
+  learningReminders: true,
+  courseAnnouncements: true,
+  subscriptionReminders: true,
+  productTips: false,
+  reduceMotion: false,
+  compactLayout: false,
+  analyticsSharing: true,
+  autoplayNextLecture: true,
+  showProgressPercent: true,
+};
+
+const normalizeSettings = (settings = {}) => ({
+  ...defaultSettings,
+  ...(settings || {}),
+});
 
 export const sendOTP = async (req, res) => {
   try {
@@ -129,14 +157,36 @@ export const login = async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ id: user._id, accountType: user.accountType }, process.env.JWT_SECRET, {
-      expiresIn: "1d",
+    const sessionId = newSessionId();
+
+    await revokeAllActiveSessions(user._id, "new_login");
+
+    const session = await createSession({
+      userId: user._id,
+      tokenId: sessionId,
+      request: req,
+      session: req.body?.deviceSession || {},
     });
+
+    const token = jwt.sign(
+      { id: user._id, accountType: user.accountType },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1d",
+        jwtid: sessionId,
+      }
+    );
 
     const sanitizedUser = user.toObject();
     delete sanitizedUser.password;
+    sanitizedUser.settings = normalizeSettings(sanitizedUser.settings);
 
-    return res.status(200).json({ success: true, token, user: sanitizedUser });
+    return res.status(200).json({
+      success: true,
+      token,
+      user: sanitizedUser,
+      session: buildSessionPayload(session, sessionId),
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -228,6 +278,7 @@ const buildSanitizedUser = (user) => ({
   contactNumber: user.contactNumber || "",
   accountType: user.accountType,
   image: user.image,
+  settings: normalizeSettings(user.settings),
   subscriptionPurchased: Boolean(user.subscriptionPurchased),
   subscriptionPurchasedOn: user.subscriptionPurchasedOn || null,
   subscriptionValidTill: user.subscriptionValidTill || null,

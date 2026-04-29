@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import User from "../models/User.js";
+import { getActiveSessionByToken, markSessionSeen } from "../utils/sessionManager.js";
 
 dotenv.config();
 
@@ -17,6 +18,16 @@ export const auth = async (req, res, next) => {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.authTokenId = decoded?.jti || "";
+
+    if (decoded?.jti) {
+      const session = await getActiveSessionByToken(decoded.jti);
+      if (!session || String(session.user) !== String(decoded.id)) {
+        return res.status(401).json({ success: false, message: "Session expired. Please log in again." });
+      }
+      req.session = session;
+      await markSessionSeen(decoded.jti);
+    }
 
     // Attach user to request
     const user = await User.findById(decoded.id).select("-password");
