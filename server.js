@@ -79,8 +79,8 @@ app.use("/api/v1/courses", courseRoutes);
 app.use("/api/v1/chat", chatRoutes);
 app.use("/api/v1/medicine-usmle", medicineUsmleRoutes);
 
-// Health check — DB ping included, used by frontend to wake up Render
-app.get("/api/v1/health", async (req, res) => {
+// Health check — DB ping included, used by Render and frontend
+app.get(["/health", "/api/v1/health"], async (req, res) => {
   const dbState = mongoose.connection.readyState; // 1 = connected
   if (dbState !== 1) {
     return res.status(503).json({ status: "error", db: "disconnected" });
