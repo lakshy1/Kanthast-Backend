@@ -1,6 +1,7 @@
 import Profile from "../models/Profile.js";
 import User from "../models/User.js";
 import UserSession from "../models/UserSession.js";
+import { createSession, getRequestIp } from "../utils/sessionManager.js";
 import {
   buildSessionPayload,
   revokeOtherSessions,
@@ -245,9 +246,36 @@ export const getActiveSessions = async (req, res) => {
     const userId = req.user?._id || req.user?.id;
     const currentSessionId = req.authTokenId || req.session?.sessionId || req.session?.tokenId || "";
 
-    const sessions = await UserSession.find({ user: userId })
+    let sessions = await UserSession.find({ user: userId })
       .sort({ revokedAt: 1, lastSeenAt: -1, startedAt: -1 })
       .lean();
+
+    if ((!sessions || sessions.length === 0) && currentSessionId) {
+      const fallbackSession = await UserSession.findOne({ tokenId: currentSessionId, revokedAt: null }).lean();
+      if (!fallbackSession) {
+        await createSession({
+          userId,
+          tokenId: currentSessionId,
+          request: req,
+          session: {
+            deviceName: req.session?.deviceName || "Current device",
+            browserName: req.session?.browserName || "Browser",
+            browserVersion: req.session?.browserVersion || "",
+            osName: req.session?.osName || "Unknown OS",
+            platform: req.session?.platform || "",
+            userAgent: req.session?.userAgent || req.headers["user-agent"] || "",
+            locationSource: req.session?.locationSource || "unknown",
+            locationLabel: req.session?.locationLabel || "Unknown",
+            geo: req.session?.geo || {},
+            ipAddress: getRequestIp(req),
+          },
+        });
+
+        sessions = await UserSession.find({ user: userId })
+          .sort({ revokedAt: 1, lastSeenAt: -1, startedAt: -1 })
+          .lean();
+      }
+    }
 
     const safeSessions = Array.isArray(sessions) ? sessions : [];
 

@@ -5,6 +5,7 @@ import cors from "cors";
 import fileUpload from "express-fileupload";
 import dotenv from "dotenv";
 
+import mongoose from "mongoose";
 import { connectDB } from "./config/database.js";
 import { cloudinaryConnect } from "./config/cloudinary.js";
 
@@ -78,9 +79,18 @@ app.use("/api/v1/courses", courseRoutes);
 app.use("/api/v1/chat", chatRoutes);
 app.use("/api/v1/medicine-usmle", medicineUsmleRoutes);
 
-// Health check — lightweight, no DB query, used by frontend to wake up Render
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+// Health check — DB ping included, used by frontend to wake up Render
+app.get("/api/v1/health", async (req, res) => {
+  const dbState = mongoose.connection.readyState; // 1 = connected
+  if (dbState !== 1) {
+    return res.status(503).json({ status: "error", db: "disconnected" });
+  }
+  try {
+    await mongoose.connection.db.admin().ping();
+    res.status(200).json({ status: "ok", db: "connected" });
+  } catch {
+    res.status(503).json({ status: "error", db: "unreachable" });
+  }
 });
 
 // Default route
