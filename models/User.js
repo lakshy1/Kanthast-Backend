@@ -181,6 +181,34 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: null,
     },
+    track: {
+        type: String,
+        enum: ["medical", "school"],
+        default: "medical",
+    },
+    schoolClass: {
+        type: String,
+        enum: ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+        default: "",
+    },
+    subscriptionPlan: {
+        type: String,
+        enum: ["", "medical-1y", "medical-2y", "school-class-1y"],
+        default: "",
+    },
+    subscriptionAmount: {
+        type: Number,
+        default: 0,
+    },
+    subscriptionCurrency: {
+        type: String,
+        enum: ["", "USD", "INR"],
+        default: "",
+    },
+    subscriptionPaymentId: {
+        type: String,
+        default: "",
+    },
     settings: {
         type: userSettingsSchema,
         default: () => ({}),

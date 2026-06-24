@@ -36,6 +36,15 @@ const normalizeSettings = (settings = {}) => ({
   ...(settings || {}),
 });
 
+const validSchoolClasses = new Set(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+
+const normalizeTrack = (track) => (track === "school" ? "school" : "medical");
+
+const normalizeSchoolClass = (schoolClass) => {
+  const value = String(schoolClass || "").trim();
+  return validSchoolClasses.has(value) ? value : "";
+};
+
 export const sendOTP = async (req, res) => {
   try {
     const { email } = req.body;
@@ -66,9 +75,11 @@ export const signUp = async (req, res) => {
   try {
     // Signup now uses a single password input from the client.
     // `confirmPassword` is intentionally removed from required flow.
-    const { firstName, lastName, email, contactNumber, password, accountType, otp } = req.body;
+    const { firstName, lastName, email, contactNumber, password, accountType, otp, track, schoolClass } = req.body;
     const normalizedEmail = email?.trim().toLowerCase();
     const normalizedOtp = String(otp || "").trim();
+    const normalizedTrack = normalizeTrack(track);
+    const normalizedSchoolClass = normalizeSchoolClass(schoolClass);
 
     if (
       !firstName ||
@@ -83,6 +94,10 @@ export const signUp = async (req, res) => {
 
     if (!["Student", "Instructor"].includes(accountType)) {
       return res.status(400).json({ success: false, message: "Invalid account type" });
+    }
+
+    if (normalizedTrack === "school" && !normalizedSchoolClass) {
+      return res.status(400).json({ success: false, message: "Please select a valid class from I-X" });
     }
 
     const existingUser = await User.findOne({ email: normalizedEmail });
@@ -120,6 +135,8 @@ export const signUp = async (req, res) => {
       image: `https://api.dicebear.com/5.x/initials/svg?seed=${encodeURIComponent(
         `${firstName} ${lastName}`
       )}`,
+      track: normalizedTrack,
+      schoolClass: normalizedTrack === "school" ? normalizedSchoolClass : "",
     });
 
     return res.status(201).json({
@@ -131,6 +148,8 @@ export const signUp = async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         accountType: user.accountType,
+        track: user.track,
+        schoolClass: user.schoolClass,
       },
     });
   } catch (error) {
@@ -180,6 +199,12 @@ export const login = async (req, res) => {
     const sanitizedUser = user.toObject();
     delete sanitizedUser.password;
     sanitizedUser.settings = normalizeSettings(sanitizedUser.settings);
+    sanitizedUser.track = normalizeTrack(sanitizedUser.track);
+    sanitizedUser.schoolClass = normalizeSchoolClass(sanitizedUser.schoolClass);
+    sanitizedUser.subscriptionPlan = sanitizedUser.subscriptionPlan || "";
+    sanitizedUser.subscriptionAmount = Number(sanitizedUser.subscriptionAmount || 0);
+    sanitizedUser.subscriptionCurrency = sanitizedUser.subscriptionCurrency || "";
+    sanitizedUser.subscriptionPaymentId = sanitizedUser.subscriptionPaymentId || "";
 
     return res.status(200).json({
       success: true,
@@ -244,6 +269,10 @@ export const deactivateUserSubscription = async (req, res) => {
         subscriptionPurchased: false,
         subscriptionPurchasedOn: null,
         subscriptionValidTill: null,
+        subscriptionPlan: "",
+        subscriptionAmount: 0,
+        subscriptionCurrency: "",
+        subscriptionPaymentId: "",
       },
       { new: true }
     ).select("-password");
@@ -263,6 +292,12 @@ export const deactivateUserSubscription = async (req, res) => {
         subscriptionPurchased: user.subscriptionPurchased,
         subscriptionPurchasedOn: user.subscriptionPurchasedOn,
         subscriptionValidTill: user.subscriptionValidTill,
+        track: normalizeTrack(user.track),
+        schoolClass: normalizeSchoolClass(user.schoolClass),
+        subscriptionPlan: user.subscriptionPlan || "",
+        subscriptionAmount: Number(user.subscriptionAmount || 0),
+        subscriptionCurrency: user.subscriptionCurrency || "",
+        subscriptionPaymentId: user.subscriptionPaymentId || "",
       },
     });
   } catch (error) {
@@ -282,6 +317,12 @@ const buildSanitizedUser = (user) => ({
   subscriptionPurchased: Boolean(user.subscriptionPurchased),
   subscriptionPurchasedOn: user.subscriptionPurchasedOn || null,
   subscriptionValidTill: user.subscriptionValidTill || null,
+  track: normalizeTrack(user.track),
+  schoolClass: normalizeSchoolClass(user.schoolClass),
+  subscriptionPlan: user.subscriptionPlan || "",
+  subscriptionAmount: Number(user.subscriptionAmount || 0),
+  subscriptionCurrency: user.subscriptionCurrency || "",
+  subscriptionPaymentId: user.subscriptionPaymentId || "",
   joinedAt: user.createdAt,
 });
 
@@ -369,6 +410,12 @@ export const updateUserByAdmin = async (req, res) => {
       subscriptionPurchased,
       subscriptionPurchasedOn,
       subscriptionValidTill,
+      track,
+      schoolClass,
+      subscriptionPlan,
+      subscriptionAmount,
+      subscriptionCurrency,
+      subscriptionPaymentId,
     } = req.body;
 
     if (!userId) {
@@ -404,6 +451,22 @@ export const updateUserByAdmin = async (req, res) => {
       user.accountType = accountType;
     }
 
+    if (track !== undefined) {
+      const normalizedTrack = normalizeTrack(track);
+      user.track = normalizedTrack;
+      if (normalizedTrack === "medical") {
+        user.schoolClass = "";
+      }
+    }
+
+    if (schoolClass !== undefined) {
+      const normalizedSchoolClass = normalizeSchoolClass(schoolClass);
+      if (user.track === "school" && !normalizedSchoolClass) {
+        return res.status(400).json({ success: false, message: "Please select a valid class from I-X" });
+      }
+      user.schoolClass = user.track === "school" ? normalizedSchoolClass : "";
+    }
+
     if (subscriptionPurchased !== undefined) {
       const purchased = Boolean(subscriptionPurchased);
       user.subscriptionPurchased = purchased;
@@ -411,11 +474,20 @@ export const updateUserByAdmin = async (req, res) => {
       if (!purchased) {
         user.subscriptionPurchasedOn = null;
         user.subscriptionValidTill = null;
+        user.subscriptionPlan = "";
+        user.subscriptionAmount = 0;
+        user.subscriptionCurrency = "";
+        user.subscriptionPaymentId = "";
       } else {
         user.subscriptionPurchasedOn = subscriptionPurchasedOn || user.subscriptionPurchasedOn || new Date();
         user.subscriptionValidTill = subscriptionValidTill || user.subscriptionValidTill || null;
       }
     }
+
+    if (subscriptionPlan !== undefined) user.subscriptionPlan = subscriptionPlan || "";
+    if (subscriptionAmount !== undefined) user.subscriptionAmount = Number(subscriptionAmount || 0);
+    if (subscriptionCurrency !== undefined) user.subscriptionCurrency = subscriptionCurrency || "";
+    if (subscriptionPaymentId !== undefined) user.subscriptionPaymentId = subscriptionPaymentId || "";
 
     await user.save();
 

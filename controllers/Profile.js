@@ -40,6 +40,15 @@ const sanitizeSettingsPayload = (payload = {}) =>
     return acc;
   }, {});
 
+const validSchoolClasses = new Set(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+
+const normalizeTrack = (track) => (track === "school" ? "school" : "medical");
+
+const normalizeSchoolClass = (schoolClass) => {
+  const value = String(schoolClass || "").trim();
+  return validSchoolClasses.has(value) ? value : "";
+};
+
 const buildUserPayload = (userDetails) => ({
   _id: userDetails._id,
   firstName: userDetails.firstName,
@@ -51,6 +60,12 @@ const buildUserPayload = (userDetails) => ({
   subscriptionPurchased: Boolean(userDetails.subscriptionPurchased),
   subscriptionPurchasedOn: userDetails.subscriptionPurchasedOn || null,
   subscriptionValidTill: userDetails.subscriptionValidTill || null,
+  track: normalizeTrack(userDetails.track),
+  schoolClass: normalizeSchoolClass(userDetails.schoolClass),
+  subscriptionPlan: userDetails.subscriptionPlan || "",
+  subscriptionAmount: Number(userDetails.subscriptionAmount || 0),
+  subscriptionCurrency: userDetails.subscriptionCurrency || "",
+  subscriptionPaymentId: userDetails.subscriptionPaymentId || "",
   joinedAt: userDetails.createdAt,
   settings: normalizeSettings(userDetails.settings),
 });
@@ -152,13 +167,29 @@ export const getProfile = async (req, res) => {
 export const purchaseSubscription = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { planDurationYears, dummyPaymentStatus, dummyPaymentId } = req.body;
+    const { planDurationYears, dummyPaymentStatus, dummyPaymentId, track, schoolClass } = req.body;
+    const normalizedTrack = normalizeTrack(track);
+    const normalizedSchoolClass = normalizeSchoolClass(schoolClass);
 
     if (!userId) {
       return res.status(400).json({ success: false, message: "User ID is required" });
     }
 
-    if (![1, 2].includes(Number(planDurationYears))) {
+    if (normalizedTrack === "school" && Number(planDurationYears) !== 1) {
+      return res.status(400).json({
+        success: false,
+        message: "School class plans are available as one-year subscriptions only.",
+      });
+    }
+
+    if (normalizedTrack === "school" && !normalizedSchoolClass) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select a valid class from I-X.",
+      });
+    }
+
+    if (normalizedTrack === "medical" && ![1, 2].includes(Number(planDurationYears))) {
       return res.status(400).json({
         success: false,
         message: "Invalid plan duration. Allowed values: 1 or 2 years.",
@@ -178,13 +209,31 @@ export const purchaseSubscription = async (req, res) => {
     }
 
     const now = new Date();
+    const durationYears = normalizedTrack === "school" ? 1 : Number(planDurationYears);
     const baseDate =
       currentUser.subscriptionValidTill && new Date(currentUser.subscriptionValidTill) > now
         ? new Date(currentUser.subscriptionValidTill)
         : now;
 
     const validTill = new Date(baseDate);
-    validTill.setFullYear(validTill.getFullYear() + Number(planDurationYears));
+    validTill.setFullYear(validTill.getFullYear() + durationYears);
+
+    const subscriptionDetails =
+      normalizedTrack === "school"
+        ? {
+            track: "school",
+            schoolClass: normalizedSchoolClass,
+            subscriptionPlan: "school-class-1y",
+            subscriptionAmount: 5000,
+            subscriptionCurrency: "INR",
+          }
+        : {
+            track: "medical",
+            schoolClass: "",
+            subscriptionPlan: durationYears === 2 ? "medical-2y" : "medical-1y",
+            subscriptionAmount: durationYears === 2 ? 200 : 110,
+            subscriptionCurrency: "USD",
+          };
 
     const userDetails = await User.findByIdAndUpdate(
       userId,
@@ -192,6 +241,8 @@ export const purchaseSubscription = async (req, res) => {
         subscriptionPurchased: true,
         subscriptionPurchasedOn: now,
         subscriptionValidTill: validTill,
+        subscriptionPaymentId: String(dummyPaymentId).trim(),
+        ...subscriptionDetails,
       },
       { new: true }
     ).populate("additionalDetails");
