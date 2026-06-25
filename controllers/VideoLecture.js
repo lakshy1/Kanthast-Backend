@@ -185,7 +185,7 @@ async function generateJobMedia(job, packageData, publicBaseUrl = "") {
   return { mediaFilePath, thumbnailUrl, mediaUrl };
 }
 
-async function processVideoJob(jobId) {
+async function processVideoJob(jobId, publicBaseUrl = "") {
   const job = await VideoGeneration.findById(jobId);
   if (!job || job.status !== "queued") return;
 
@@ -216,7 +216,6 @@ async function processVideoJob(jobId) {
     });
 
     job.normalizedTopic = normalizeTopic(job.topic);
-    const publicBaseUrl = `${req.protocol}://${req.get("host")}`;
     const mediaDetails = await generateJobMedia(job, packageData, publicBaseUrl);
 
     job.progress = 70;
@@ -278,7 +277,8 @@ export const createAiVideoLecture = async (req, res) => {
       accessKey,
     });
 
-    processVideoJob(job._id).catch(() => {});
+    const publicBaseUrl = `${req.protocol}://${req.get("host")}`;
+    processVideoJob(job._id, publicBaseUrl).catch(() => {});
 
     return res.status(202).json({
       success: true,
