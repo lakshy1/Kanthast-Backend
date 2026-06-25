@@ -76,6 +76,29 @@ const chatMessageSchema = new mongoose.Schema(
             required: true,
             trim: true,
         },
+        mediaType: {
+            type: String,
+            enum: ["", "video/mp4", "video"],
+            default: "",
+        },
+        mediaUrl: {
+            type: String,
+            default: "",
+        },
+        thumbnailUrl: {
+            type: String,
+            default: "",
+        },
+        topic: {
+            type: String,
+            default: "",
+            trim: true,
+        },
+        caption: {
+            type: String,
+            default: "",
+            trim: true,
+        },
         fileUrl: {
             type: String,
             default: "",
